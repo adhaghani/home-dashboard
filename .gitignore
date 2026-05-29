@@ -1,0 +1,17 @@
+# ── Rust ─────────────────────────────────────────────────────────────────────
+backend/target/
+**/*.rs.bk
+
+# ── Node / Next.js ─────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/next-env.d.ts
+
+# ── System ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+deploy.sh
+

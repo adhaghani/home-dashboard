@@ -1,0 +1,23 @@
+[package]
+name = "home-dashboard-backend"
+version = "0.1.0"
+edition = "2021"
+description = "Lightweight system metrics API and Supabase keep-alive for Orange Pi Zero 2"
+
+# Optimize for size on 1GB RAM devices
+[profile.release]
+opt-level = "s"     # Optimize for binary size
+lto = true          # Link-time optimization
+codegen-units = 1   # Better optimization, slower compile
+strip = "symbols"   # Strip debug symbols
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+sysinfo = "0.31"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tower-http = { version = "0.5", features = ["cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

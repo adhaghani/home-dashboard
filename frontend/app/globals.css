@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface-950 text-slate-200 antialiased;
+  }
+}
+
+@layer components {
+  /* ── Custom scrollbar (dark theme) ──────────────────────────────────── */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-700;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-600;
+  }
+
+  /* ── Skeleton loading pulse ─────────────────────────────────────────── */
+  .skeleton {
+    @apply animate-pulse rounded-lg bg-surface-800;
+  }
+}
+
+@layer utilities {
+  /* ── Progress bar gradient utilities ────────────────────────────────── */
+  .progress-cpu {
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+  }
+  .progress-ram {
+    background: linear-gradient(90deg, #a855f7, #c084fc);
+  }
+  .progress-disk {
+    background: linear-gradient(90deg, #06b6d4, #22d3ee);
+  }
+  .progress-temp-safe {
+    background: linear-gradient(90deg, #22c55e, #4ade80);
+  }
+  .progress-temp-warn {
+    background: linear-gradient(90deg, #eab308, #facc15);
+  }
+  .progress-temp-hot {
+    background: linear-gradient(90deg, #ef4444, #f87171);
+  }
+}
