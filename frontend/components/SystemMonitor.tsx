@@ -5,6 +5,9 @@ import type { SystemStats } from '@/lib/types';
 import NanobotCard from '@/components/NanobotCard';
 import NanobotDetailModal from '@/components/NanobotDetailModal';
 import TailscaleCard from '@/components/TailscaleCard';
+import StremioCard from '@/components/StremioCard';
+import WeatherCard from '@/components/WeatherCard';
+import BandwidthCard from '@/components/BandwidthCard';
 
 function getApiUrl(): string {
   const base = process.env.NEXT_PUBLIC_BACKEND_URL || '';
@@ -55,13 +58,23 @@ export default function SystemMonitor() {
             </div>
           ))}
         </div>
-        {/* Row 2: 4 compact cards */}
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        {/* Row 2: 5 compact cards */}
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="rounded-xl bg-surface-900 p-5">
               <div className="skeleton mb-3 h-4 w-20" />
               <div className="skeleton mb-2 h-6 w-16" />
               <div className="skeleton h-3 w-36" />
+            </div>
+          ))}
+        </div>
+        {/* Row 3: 2 compact cards */}
+        <div className="grid gap-4 grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="rounded-xl bg-surface-900 p-5">
+              <div className="skeleton mb-3 h-4 w-20" />
+              <div className="skeleton mb-2 h-6 w-16" />
+              <div className="skeleton h-3 w-32" />
             </div>
           ))}
         </div>
@@ -111,7 +124,7 @@ export default function SystemMonitor() {
       </div>
 
       {/* ── Row 2: Status cards (5 cols) ────────────────────────────── */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <UptimeCard
           seconds={s.uptime_seconds}
           error={error}
@@ -119,7 +132,14 @@ export default function SystemMonitor() {
         />
         <NanobotCard onShowDetails={() => setNanobotDetailOpen(true)} />
         <TailscaleCard />
+        <StremioCard />
         <TempMiniCard tempC={cpuTemp} />
+      </div>
+
+      {/* ── Row 3: Weather + Bandwidth (2 cols on mobile, 2 on desktop) ── */}
+      <div className="grid gap-4 grid-cols-2">
+        <WeatherCard />
+        <BandwidthCard />
       </div>
 
       {/* ── Nanobot Detail Modal ────────────────────────────────────── */}

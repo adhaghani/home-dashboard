@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react';
 import SystemMonitor from '@/components/SystemMonitor';
 import ServicesGrid from '@/components/ServicesGrid';
 import ServiceModal, { ModalMode } from '@/components/ServiceModal';
+import LanDevices from '@/components/LanDevices';
+import UptimeMonitor from '@/components/UptimeMonitor';
 import type { Service } from '@/lib/types';
 import { useServices } from '@/components/ServicesGrid';
 
@@ -63,6 +65,12 @@ export default function DashboardPage() {
       <section className="mb-8">
         <SystemMonitor />
       </section>
+
+      {/* ── LAN Devices ──────────────────────────────────────────── */}
+      <LanDevices />
+
+      {/* ── Uptime Monitor ───────────────────────────────────────── */}
+      <UptimeMonitor />
 
       {/* ── Services Grid ──────────────────────────────────────────── */}
       <section>

@@ -38,6 +38,12 @@ export interface NanobotDetails {
   error: string | null;
 }
 
+/** Stremio streaming server status returned by `/api/stremio`. */
+export interface StremioStatus {
+  running: boolean;
+  error: string | null;
+}
+
 /** Tailscale status returned by `/api/tailscale`. */
 export interface TailscaleStatus {
   running: boolean;
@@ -63,4 +69,64 @@ export interface SystemStats {
   disk_used_mb: number;
   disk_total_mb: number;
   uptime_seconds: number;
+}
+
+/** LAN device discovered via ARP table, returned by `/api/devices`. */
+export interface LanDevice {
+  ip: string;
+  mac: string;
+  hostname: string | null;
+}
+
+/** Bandwidth statistics returned by `/api/bandwidth` (vnstat). */
+export interface BandwidthStats {
+  interface: string;
+  rx_today_mb: number;
+  tx_today_mb: number;
+  rx_month_mb: number;
+  tx_month_mb: number;
+  rx_total_gb: number;
+  tx_total_gb: number;
+  error: string | null;
+}
+
+/** Current weather returned by `/api/weather` (Open-Meteo proxy). */
+export interface WeatherResponse {
+  temperature_c: number;
+  condition_text: string;
+  humidity_percent: number;
+  wind_speed_kmh: number;
+}
+
+/** An uptime monitoring target stored in Supabase. */
+export interface UptimeTarget {
+  id: number;
+  name: string;
+  url: string;
+  interval_seconds: number;
+  enabled: boolean;
+  created_at?: string;
+}
+
+/** A single uptime check result. */
+export interface UptimeResult {
+  target_id: number;
+  reachable: boolean;
+  latency_ms: number;
+  error: string | null;
+  checked_at: string;
+}
+
+/** A history data point (lightweight, for sparklines). */
+export interface UptimeHistoryPoint {
+  reachable: boolean;
+  latency_ms: number;
+  checked_at: string;
+}
+
+/** Combined target + latest result + history returned by `/api/uptime-status`. */
+export interface UptimeStatusItem {
+  target: UptimeTarget;
+  latest: UptimeResult | null;
+  history: UptimeHistoryPoint[];
 }

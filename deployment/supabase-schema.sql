@@ -46,8 +46,66 @@ CREATE POLICY "Allow delete access"
     ON public.services FOR DELETE
     USING (true);
 
+-- ── Uptime Monitor: target URLs to probe ────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.uptime_targets (
+    id               BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name             TEXT NOT NULL,               -- display label (e.g. "Pi-Hole")
+    url              TEXT NOT NULL,               -- URL to probe (e.g. "http://pi.hole/admin")
+    interval_seconds INT NOT NULL DEFAULT 300,    -- probe frequency (default 5 min)
+    enabled          BOOLEAN NOT NULL DEFAULT true,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Uptime Monitor: individual check results ────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.uptime_results (
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    target_id   BIGINT NOT NULL REFERENCES public.uptime_targets(id) ON DELETE CASCADE,
+    reachable   BOOLEAN NOT NULL,
+    latency_ms  INT NOT NULL DEFAULT 0,
+    error       TEXT,                            -- error message if unreachable
+    checked_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Indexes for querying results by target and time
+CREATE INDEX IF NOT EXISTS idx_uptime_results_target_id
+    ON public.uptime_results(target_id);
+CREATE INDEX IF NOT EXISTS idx_uptime_results_checked_at
+    ON public.uptime_results(checked_at DESC);
+
+-- Optional: auto-cleanup of old results (keep last 30 days)
+-- Uncomment if the table grows too large over time:
+-- CREATE OR REPLACE FUNCTION cleanup_old_uptime_results()
+-- RETURNS void AS $$
+-- BEGIN
+--     DELETE FROM public.uptime_results
+--     WHERE checked_at < now() - INTERVAL '30 days';
+-- END;
+-- $$ LANGUAGE plpgsql;
+-- SELECT cron.schedule('cleanup-uptime-results', '0 3 * * *', 'SELECT cleanup_old_uptime_results()');
+
+-- ── RLS: open access (single-user LAN dashboard, same pattern as services) ───
+
+ALTER TABLE public.uptime_targets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.uptime_results ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all on uptime_targets"
+    ON public.uptime_targets FOR ALL
+    USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow all on uptime_results"
+    ON public.uptime_results FOR ALL
+    USING (true) WITH CHECK (true);
+
 -- ── Sample data (optional) ──────────────────────────────────────────────────
 -- INSERT INTO public.services (name, url, icon, category, sort_order) VALUES
 --     ('Pi-Hole Admin', 'http://pi.hole/admin', '🛡️', 'Networking', 1),
 --     ('Portainer',    'https://portainer.local',  '🐳', 'Management', 2),
 --     ('Jellyfin',     'http://jellyfin.local',    '🎬', 'Media',      3);
+
+-- ── Sample uptime targets ───────────────────────────────────────────────────
+INSERT INTO public.uptime_targets (name, url, interval_seconds) VALUES
+    ('Pi-Hole DNS',  'http://127.0.0.1:80/admin/api.php', 120),
+    ('Dashboard API', 'http://127.0.0.1:8081/api/stats',  60),
+     ('Google DNS',   'https://8.8.8.8',                   300);
