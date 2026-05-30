@@ -1,34 +1,37 @@
-'use client';
+"use client";
 
-import { useState, useCallback } from 'react';
-import SystemMonitor from '@/components/SystemMonitor';
-import ServicesGrid from '@/components/ServicesGrid';
-import ServiceModal, { ModalMode } from '@/components/ServiceModal';
-import LanDevices from '@/components/LanDevices';
-import UptimeMonitor from '@/components/UptimeMonitor';
-import type { Service } from '@/lib/types';
-import { useServices } from '@/components/ServicesGrid';
+import { useState, useCallback } from "react";
+import SystemMonitor from "@/components/SystemMonitor";
+import ServicesGrid from "@/components/ServicesGrid";
+import ServiceModal, { ModalMode } from "@/components/ServiceModal";
+import LanDevices from "@/components/LanDevices";
+import UptimeMonitor from "@/components/UptimeMonitor";
+import ServiceStatusCard from "@/components/ServiceStatusCard";
+import TopProcessesCard from "@/components/TopProcessesCard";
+import SshMonitorCard from "@/components/SshMonitorCard";
+import type { Service } from "@/lib/types";
+import { useServices } from "@/components/ServicesGrid";
 
 export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<ModalMode>('add');
+  const [modalMode, setModalMode] = useState<ModalMode>("add");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const { services, loading, error, refresh } = useServices();
 
   const handleAdd = useCallback(() => {
-    setModalMode('add');
+    setModalMode("add");
     setSelectedService(null);
     setModalOpen(true);
   }, []);
 
   const handleEdit = useCallback((service: Service) => {
-    setModalMode('edit');
+    setModalMode("edit");
     setSelectedService(service);
     setModalOpen(true);
   }, []);
 
   const handleDelete = useCallback((service: Service) => {
-    setModalMode('delete');
+    setModalMode("delete");
     setSelectedService(service);
     setModalOpen(true);
   }, []);
@@ -66,8 +69,8 @@ export default function DashboardPage() {
         <SystemMonitor />
       </section>
 
-      {/* ── LAN Devices ──────────────────────────────────────────── */}
-      <LanDevices />
+      {/* ── Service Status ────────────────────────────────────────────── */}
+      <ServiceStatusCard />
 
       {/* ── Uptime Monitor ───────────────────────────────────────── */}
       <UptimeMonitor />
@@ -103,6 +106,15 @@ export default function DashboardPage() {
         onClose={handleClose}
         onSaved={refresh}
       />
+
+      {/* ── Top Processes ────────────────────────────────────────────── */}
+      <TopProcessesCard />
+
+      {/* ── SSH Monitor ──────────────────────────────────────────────── */}
+      <SshMonitorCard />
+
+      {/* ── LAN Devices ──────────────────────────────────────────── */}
+      <LanDevices />
     </main>
   );
 }
@@ -117,7 +129,11 @@ function PlusIcon() {
       strokeWidth={2}
       stroke="currentColor"
     >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 4.5v15m7.5-7.5h-15"
+      />
     </svg>
   );
 }

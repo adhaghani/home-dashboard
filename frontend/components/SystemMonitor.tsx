@@ -8,6 +8,7 @@ import TailscaleCard from '@/components/TailscaleCard';
 import StremioCard from '@/components/StremioCard';
 import WeatherCard from '@/components/WeatherCard';
 import BandwidthCard from '@/components/BandwidthCard';
+import SdWearCard from '@/components/SdWearCard';
 
 function getApiUrl(): string {
   const base = process.env.NEXT_PUBLIC_BACKEND_URL || '';
@@ -68,9 +69,9 @@ export default function SystemMonitor() {
             </div>
           ))}
         </div>
-        {/* Row 3: 2 compact cards */}
-        <div className="grid gap-4 grid-cols-2">
-          {Array.from({ length: 2 }).map((_, i) => (
+        {/* Row 3: 3 compact cards */}
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="rounded-xl bg-surface-900 p-5">
               <div className="skeleton mb-3 h-4 w-20" />
               <div className="skeleton mb-2 h-6 w-16" />
@@ -136,10 +137,11 @@ export default function SystemMonitor() {
         <TempMiniCard tempC={cpuTemp} />
       </div>
 
-      {/* ── Row 3: Weather + Bandwidth (2 cols on mobile, 2 on desktop) ── */}
-      <div className="grid gap-4 grid-cols-2">
+      {/* ── Row 3: Weather + Bandwidth + SD Wear (2 cols mobile, 3 cols desktop) ── */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
         <WeatherCard />
         <BandwidthCard />
+        <SdWearCard />
       </div>
 
       {/* ── Nanobot Detail Modal ────────────────────────────────────── */}

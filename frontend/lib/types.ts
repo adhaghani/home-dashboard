@@ -71,6 +71,50 @@ export interface SystemStats {
   uptime_seconds: number;
 }
 
+/** Process info returned by `/api/top-processes`. */
+export interface ProcessInfo {
+  pid: number;
+  name: string;
+  cpu_percent: number;
+  mem_mb: number;
+}
+
+/** Top processes response from `/api/top-processes`. */
+export interface TopProcesses {
+  by_cpu: ProcessInfo[];
+  by_mem: ProcessInfo[];
+}
+
+/** systemd service status from `/api/service-status`. */
+export interface ServiceStatus {
+  name: string;
+  active: boolean;
+  enabled: boolean;
+}
+
+/** SD card wear info from `/api/sd-wear`. */
+export interface SdWearInfo {
+  device: string;
+  life_used_pct: number | null;
+  wear_indicator: string | null;
+  sectors_written_gb: number | null;
+  pre_eol_info: string | null;
+}
+
+/** A single SSH failure entry from `/api/ssh-monitor`. */
+export interface SshFailure {
+  timestamp: string;
+  ip: string;
+  user: string;
+  port: number;
+}
+
+/** SSH monitor response from `/api/ssh-monitor`. */
+export interface SshMonitorResponse {
+  total_failures_24h: number;
+  recent: SshFailure[];
+}
+
 /** LAN device discovered via ARP table, returned by `/api/devices`. */
 export interface LanDevice {
   ip: string;

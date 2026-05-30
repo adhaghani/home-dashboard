@@ -13,13 +13,16 @@
 
 [Unit]
 Description=Home Dashboard Backend — System Metrics & Supabase Keep-Alive
-After=network-online.target
-Wants=network-online.target
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
 
 [Service]
 Type=simple
 User=adhaghani
 Group=adhaghani
+
+# Wait for Tailscale to fully initialize (needed for peer count + IP)
+ExecStartPre=/bin/sleep 5
 ExecStart=/usr/local/bin/home-dashboard-backend
 
 # Always restart on crash (critical for keep-alive)

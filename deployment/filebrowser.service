@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# systemd unit for FileBrowser — web file manager
+# ─────────────────────────────────────────────────────────────────────────────
+# Install:  cp filebrowser.service /etc/systemd/system/
+#           systemctl daemon-reload
+#           systemctl enable --now filebrowser
+# ─────────────────────────────────────────────────────────────────────────────
+
+[Unit]
+Description=FileBrowser - Web File Manager
+Documentation=https://github.com/filebrowser/filebrowser
+After=network.target
+
+[Service]
+Type=simple
+User=adhaghani
+Group=adhaghani
+ExecStart=/usr/local/bin/filebrowser --address 127.0.0.1 --port 8083 --root /home/adhaghani --database /var/lib/filebrowser/filebrowser.db
+
+Restart=always
+RestartSec=5
+
+# Security hardening (moderate — needs write access to manage files)
+ProtectSystem=strict
+ProtectHome=no
+PrivateTmp=yes
+NoNewPrivileges=yes
+ReadWritePaths=/home/adhaghani
+ReadWritePaths=/var/lib/filebrowser
+ReadWritePaths=/etc/filebrowser
+
+[Install]
+WantedBy=multi-user.target

@@ -146,6 +146,58 @@ struct UptimeStatusQuery {
     limit: Option<u64>,
 }
 
+// ── Top processes types ──────────────────────────────────────────────────────
+
+#[derive(Serialize, Clone)]
+struct ProcessInfo {
+    pid: u32,
+    name: String,
+    cpu_percent: f32,
+    mem_mb: f64,
+}
+
+#[derive(Serialize)]
+struct TopProcesses {
+    by_cpu: Vec<ProcessInfo>,
+    by_mem: Vec<ProcessInfo>,
+}
+
+// ── systemd service status types ─────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct ServiceStatus {
+    name: String,
+    active: bool,
+    enabled: bool,
+}
+
+// ── SD card wear types ───────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct SdWearInfo {
+    device: String,
+    life_used_pct: Option<u8>,
+    wear_indicator: Option<String>,
+    sectors_written_gb: Option<f64>,
+    pre_eol_info: Option<String>,
+}
+
+// ── SSH monitor types ────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct SshFailure {
+    timestamp: String,
+    ip: String,
+    user: String,
+    port: u16,
+}
+
+#[derive(Serialize)]
+struct SshMonitorResponse {
+    total_failures_24h: u64,
+    recent: Vec<SshFailure>,
+}
+
 // ── Shared application state ────────────────────────────────────────────────
 
 /// Tracks the first-seen byte counters for an interface so we can compute deltas.
@@ -1010,6 +1062,264 @@ async fn get_uptime_status(
     Json(items)
 }
 
+// ── GET /api/top-processes handler ──────────────────────────────────────────
+
+/// Returns top 5 processes by CPU and top 5 by RAM using sysinfo.
+async fn get_top_processes(
+    State(state): State<Arc<AppState>>,
+) -> Json<TopProcesses> {
+    let mut sys = state.sys.lock().await;
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All);
+
+    let pid_current = sysinfo::get_current_pid().ok();
+
+    let mut procs: Vec<ProcessInfo> = sys
+        .processes()
+        .iter()
+        .filter(|(pid, _)| pid_current.as_ref() != Some(pid))
+        .map(|(pid, p)| ProcessInfo {
+            pid: pid.as_u32(),
+            name: p.name().to_string_lossy().into_owned(),
+            cpu_percent: (p.cpu_usage() * 100.0 * 10.0).round() / 10.0,
+            mem_mb: p.memory() as f64 / 1_048_576.0,
+        })
+        .collect();
+
+    // Sort by CPU desc — use f32 total_cmp via manual comparison
+    procs.sort_by(|a, b| b.cpu_percent.partial_cmp(&a.cpu_percent).unwrap_or(std::cmp::Ordering::Equal));
+    let by_cpu: Vec<ProcessInfo> = procs.iter().take(5).cloned().collect();
+
+    // Sort by memory desc
+    procs.sort_by(|a, b| b.mem_mb.partial_cmp(&a.mem_mb).unwrap_or(std::cmp::Ordering::Equal));
+    let by_mem: Vec<ProcessInfo> = procs.iter().take(5).cloned().collect();
+
+    Json(TopProcesses { by_cpu, by_mem })
+}
+
+// ── GET /api/service-status handler ──────────────────────────────────────────
+
+/// Checks whether critical systemd services are active via `systemctl is-active`.
+async fn get_service_status() -> Json<Vec<ServiceStatus>> {
+    let services = [
+        "nginx", "pihole-FTL", "home-dashboard-backend",
+        "stremio", "tailscaled", "ssh",
+    ];
+
+    let mut results = Vec::new();
+    for svc in &services {
+        let active = check_systemctl(svc, "is-active").await;
+        let enabled = check_systemctl(svc, "is-enabled").await;
+        results.push(ServiceStatus {
+            name: svc.to_string(),
+            active,
+            enabled,
+        });
+    }
+
+    Json(results)
+}
+
+async fn check_systemctl(service: &str, cmd: &str) -> bool {
+    tokio::process::Command::new("systemctl")
+        .args([cmd, "--quiet", service])
+        .output()
+        .await
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+// ── GET /api/sd-wear handler ─────────────────────────────────────────────────
+
+/// Reads SD card / eMMC wear indicators from sysfs.
+async fn get_sd_wear() -> Json<SdWearInfo> {
+    // Try mmcblk0 first, then mmcblk1
+    let device = if std::path::Path::new("/sys/block/mmcblk0/device/life_time").exists()
+        || std::path::Path::new("/sys/block/mmcblk0/stat").exists()
+    {
+        "mmcblk0"
+    } else if std::path::Path::new("/sys/block/mmcblk1/stat").exists() {
+        "mmcblk1"
+    } else {
+        return Json(SdWearInfo {
+            device: "unknown".into(),
+            life_used_pct: None,
+            wear_indicator: None,
+            sectors_written_gb: None,
+            pre_eol_info: None,
+        });
+    };
+
+    let life_used_pct = read_sysfs_u8(&format!("/sys/block/{device}/device/life_time"))
+        .map(|raw| match raw {
+            // eMMC 5.0 life_time: 0x01=0-10%, 0x02=10-20%, ... 0x0A=90-100%, 0x0B=exceeded
+            0x00 => 0,
+            n if n <= 0x0A => (n as u8 - 1) * 10 + 5,
+            _ => 100,
+        });
+
+    let pre_eol = read_sysfs_line(&format!("/sys/block/{device}/device/pre_eol_info"))
+        .map(|s| {
+            match s.trim() {
+                "0x01" => "Normal".into(),
+                "0x02" => "Warning".into(),
+                other => format!("Unknown ({other})"),
+            }
+        });
+
+    let sectors_written_gb = read_diskstat_writes(device).map(|s| s * 512.0 / 1_073_741_824.0);
+
+    let wear_indicator = life_used_pct.map(|pct| {
+        if pct < 50 { "Good" } else if pct < 80 { "Warning" } else { "Critical" }
+    }).or_else(|| pre_eol.as_deref()).map(|s| s.to_string());
+
+    Json(SdWearInfo {
+        device: device.into(),
+        life_used_pct,
+        wear_indicator,
+        sectors_written_gb: sectors_written_gb.map(|g| (g * 10.0).round() / 10.0),
+        pre_eol_info: pre_eol,
+    })
+}
+
+fn read_sysfs_u8(path: &str) -> Option<u8> {
+    let raw = std::fs::read_to_string(path).ok()?;
+    let trimmed = raw.trim();
+    if trimmed.starts_with("0x") {
+        u8::from_str_radix(trimmed.trim_start_matches("0x"), 16).ok()
+    } else {
+        trimmed.parse::<u8>().ok()
+    }
+}
+
+fn read_sysfs_line(path: &str) -> Option<String> {
+    std::fs::read_to_string(path).ok().map(|s| s.trim().to_string())
+}
+
+/// Reads field 7 (write sectors) from /sys/block/<dev>/stat.
+fn read_diskstat_writes(device: &str) -> Option<f64> {
+    let stat = std::fs::read_to_string(format!("/sys/block/{device}/stat")).ok()?;
+    stat.split_whitespace().nth(6)?.parse::<f64>().ok()
+}
+
+// ── GET /api/ssh-monitor handler ─────────────────────────────────────────────
+
+/// Parses /var/log/auth.log for failed SSH password attempts.
+async fn get_ssh_monitor() -> Json<SshMonitorResponse> {
+    let content = match std::fs::read_to_string("/var/log/auth.log") {
+        Ok(c) => c,
+        Err(_) => {
+            return Json(SshMonitorResponse {
+                total_failures_24h: 0,
+                recent: Vec::new(),
+            });
+        }
+    };
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let cutoff = now.saturating_sub(24 * 3600);
+
+    let mut recent: Vec<SshFailure> = Vec::new();
+    let mut total_24h: u64 = 0;
+
+    for line in content.lines().rev() {
+        if !line.contains("Failed password for") {
+            continue;
+        }
+
+        // Parse timestamp from syslog format: "May 30 14:22:15"
+        let ts = line.get(0..15).unwrap_or("").to_string();
+
+        let ip = line
+            .split(" from ")
+            .nth(1)
+            .and_then(|s| s.split_whitespace().next())
+            .unwrap_or("?")
+            .to_string();
+
+        let user = line
+            .split("Failed password for ")
+            .nth(1)
+            .and_then(|s| s.split_whitespace().next())
+            .unwrap_or("?")
+            .to_string();
+
+        let port = line
+            .split(" port ")
+            .nth(1)
+            .and_then(|s| s.split_whitespace().next())
+            .and_then(|p| p.parse::<u16>().ok())
+            .unwrap_or(22);
+
+        // Crude timestamp check: parse syslog timestamp relative to current year
+        if let Ok(parsed) = parse_syslog_timestamp(&ts) {
+            if parsed >= cutoff {
+                total_24h += 1;
+            }
+        } else {
+            // If we can't parse, count it anyway
+            total_24h += 1;
+        }
+
+        if recent.len() < 20 {
+            recent.push(SshFailure { timestamp: ts, ip, user, port });
+        }
+    }
+
+    Json(SshMonitorResponse {
+        total_failures_24h: total_24h,
+        recent,
+    })
+}
+
+/// Parses a syslog timestamp like "May 30 14:22:15" into a Unix timestamp.
+/// Assumes the current year.
+fn parse_syslog_timestamp(ts: &str) -> Result<u64, ()> {
+    let months: std::collections::HashMap<&str, u32> = [
+        ("Jan", 1), ("Feb", 2), ("Mar", 3), ("Apr", 4),
+        ("May", 5), ("Jun", 6), ("Jul", 7), ("Aug", 8),
+        ("Sep", 9), ("Oct", 10), ("Nov", 11), ("Dec", 12),
+    ].into_iter().collect();
+
+    let parts: Vec<&str> = ts.trim().split_whitespace().collect();
+    if parts.len() < 3 { return Err(()); }
+
+    let month = *months.get(parts[0]).ok_or(())?;
+    let day: u32 = parts[1].parse().map_err(|_| ())?;
+    let time_parts: Vec<&str> = parts[2].split(':').collect();
+    if time_parts.len() < 2 { return Err(()); }
+    let hour: u32 = time_parts[0].parse().map_err(|_| ())?;
+    let min: u32 = time_parts[1].parse().map_err(|_| ())?;
+
+    // Use current year — we fetch the year at runtime
+    use std::time::SystemTime;
+    let now = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    // Rough: extract year from now
+    let secs_per_year = 365.25 * 86400.0;
+    let year = 1970 + (now.as_secs() as f64 / secs_per_year) as i32;
+
+    let mut days_before = 0;
+    let month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    for m in 0..(month as usize - 1) {
+        days_before += month_days[m];
+    }
+
+    let total_days = (year - 1970) as u64 * 365
+        + ((year - 1969) / 4) as u64
+        - ((year - 1901) / 100) as u64
+        + ((year - 1601) / 400) as u64
+        + days_before as u64
+        + day as u64
+        - 1;
+
+    let ts = total_days * 86400 + hour as u64 * 3600 + min as u64 * 60;
+    Ok(ts)
+}
+
 // ── Uptime monitor background task ──────────────────────────────────────────
 
 /// Periodically probes all enabled uptime targets and stores results in Supabase.
@@ -1235,6 +1545,10 @@ async fn main() {
         .route("/api/bandwidth", get(get_bandwidth))
         .route("/api/weather", get(get_weather))
         .route("/api/uptime-status", get(get_uptime_status))
+        .route("/api/top-processes", get(get_top_processes))
+        .route("/api/service-status", get(get_service_status))
+        .route("/api/sd-wear", get(get_sd_wear))
+        .route("/api/ssh-monitor", get(get_ssh_monitor))
         .layer(CorsLayer::permissive())
         .with_state(state);
 

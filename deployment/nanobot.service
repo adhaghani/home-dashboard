@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# systemd unit for nanobot AI Agent
+# ─────────────────────────────────────────────────────────────────────────────
+# Install:
+#   sudo cp nanobot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now nanobot
+#
+# Check status:
+#   systemctl status nanobot
+#   journalctl -u nanobot -f
+# ─────────────────────────────────────────────────────────────────────────────
+
+[Unit]
+Description=Nanobot AI Agent
+Documentation=https://github.com/nanobot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=adhaghani
+Group=adhaghani
+WorkingDirectory=/home/adhaghani
+ExecStart=nanobot gateway
+
+# Restart on crash (nanobot can be memory-intensive — give it a longer delay)
+Restart=always
+RestartSec=10
+
+# Prevent thrashing
+StartLimitInterval=120
+StartLimitBurst=5
+
+# Environment (nanobot reads from its config.json)
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nanobot
+
+# Security: nanobot needs home access for config + sessions
+ProtectSystem=strict
+ProtectHome=no
+PrivateTmp=yes
+NoNewPrivileges=yes
+ReadWritePaths=/home/adhaghani
+
+[Install]
+WantedBy=multi-user.target
